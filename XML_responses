@@ -1,0 +1,175 @@
+So far, we have only seen API calls that return JSON response bodies, but REST Assured can work just as easily with APIs that return XML.
+The way that REST Assured determines how to process the response that's being returned by any given API, is it looks for the value of the content-type header. If that's JSON, REST Assured will automatically treat the response as being JSON. If the content-type header value in the response is equal to XML, REST Assured will see the response body as being XML, and so on, for all the types of response body contents.
+
+This means that there's no additional configuration needed, and REST Assured can work out of the box with both XML and JSON responses.
+
+Now of course you can't use JSONPath to query XML responses or response bodies. Instead, you'll need to use XMLPath for that. But as we'll see in the examples in this chapter, XMLPath is actually really similar to JSONPath, so it shouldn't take you a lot of effort to get used to that.
+
+What I've done for the examples in this chapter, I've converted the JSON response bodies of the API that we use in our tests to an XML representation of that, because the API itself doesn't return XML, it only works with JSON, so I had to do a little bit of work there myself.
+
+Here's an example response in JSON format from our API
+
+{
+  post code: "90210",
+  country: "United States",
+  country abbreviation: "US",
+  places: [
+    {
+      place name: "Beverly Hills",
+      longitude: "-118.4065",
+      state: "California",
+      state abbreviation: "CA",
+      latitude: "34.0901"
+    }
+  ]
+}
+And the XML counterpart that I've created looks like this.
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<response>
+  <postcode>90210</postcode>
+  <country>United States</country>
+  <countryAbbreviation>US</countryAbbreviation>
+  <places>
+    <place longitude="-118.4065" latitude="34.0901">
+      <placeName>Beverly Hills</placeName>
+      <state>California</state>
+      <stateAbbreviation>CA</stateAbbreviation>
+    </place>
+  </places>
+</response>
+So, the structure of it is really similar to the JSON variant, the only difference being that our XML tags around the element values of course, and to be able to illustrate how REST Assured works with attributes, I've replaced the latitude and longitude elements in the JSON response body with attributes in the XML response.
+
+#Checking Contents of an XML Response Body
+
+The first example that I want to show you is a really simple one, just like we've seen for the JSON API, I want to check the contents of a specific element in an XML response body. This is an example of a test against an API that returns an XML response body.
+
+import org.junit.Test;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+public class Chapter5Test {
+
+    @Test
+    public void requestUsZipCode90210_checkPlaceNameInResponseBody_expectBeverlyHills() {
+
+        given().
+        when().
+            get("http://localhost:9876/us/90210").
+        then().
+            assertThat().
+            body("response.places.place.placeName", equalTo("Beverly Hills"));
+    }
+I've created that one using WireMock to simulate the behavior of the Zdippopotam.us API that as I said before only works with JSON, and I need XML in this. And as you can see other than the endpoint that we call, there's only one difference between a test for an API that returns XMLs compare to a test that invokes an API that responds with JSON. And that's that the XMLPath expression (response.places.place.placeName) that's being used to extract the element from the response body looks a little different from the one that's used to extract an element value from a JSON body. But other than that the syntax really is exactly the same.
+
+To demonstrate that this one works just fine, I run the test. And as I said it now invokes an API simulation that's running on my local machine instead of the actual API at api.Zippopotam.us. And as we can see this test passes telling us that the value in the XML response returned by my simulation is also equal to Beverly Hills.
+
+Note
+
+By the way, the simulation and actually the entire WireMock installation, is included in the GitHub repository, so you can experiment with that as well. If you want to know more about WireMock and all of its capabilities, I suggest you go to WireMock.org and find out for yourself.
+
+For the next example I created an XML response that's a little larger for zip code 24848 in Germany, which returns not just a single place associated with that ZIP code, but actually a list of 4 places.
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<response>
+  <postcode>24848</postcode>
+  <country>Germany</country>
+  <countryAbbreviation>DE</countryAbbreviation>
+  <places>
+    <place longitude="9.4333" latitude="54.3833">
+      <placeName>Alt Bennebek</placeName>
+      <state>Schleswig-Holstein</state>
+      <stateAbbreviation>SH</stateAbbreviation>
+    </place>
+    <place longitude="9.4833" latitude="54.45">
+      <placeName>Klein Rheide</placeName>
+      <state>Schleswig-Holstein</state>
+      <stateAbbreviation>SH</stateAbbreviation>
+    </place>
+    <place longitude="9.5087" latitude="54.4111">
+      <placeName>Kropp</placeName>
+      <state>Schleswig-Holstein</state>
+      <stateAbbreviation>SH</stateAbbreviation>
+    </place>
+    <place longitude="9.45" latitude="54.4">
+      <placeName>Klein Bennebek</placeName>
+      <state>Schleswig-Holstein</state>
+      <stateAbbreviation>SH</stateAbbreviation>
+    </place>
+  </places>
+</response>
+And if I now want to check that the place name for the 3rd place that's being returned by the API is equal to "Kropp", I can do that like this.
+
+    @Test
+    public void requestDeZipCode24848_checkThirdPlaceNameInResponseBody_expectKropp() {
+
+        given().
+        when().
+            get("http://localhost:9876/de/24848").
+        then().
+            assertThat().
+            body("response.places.place[2].placeName", equalTo("Kropp"));
+    }
+So, retrieving an element at a specific position in your XML document, or your XML response actually, is really easy.
+
+You start with the root node again, which is response, then you drill down to the list of places. To pick the place that we're interested in is the 3rd place in the list of places in the response, so I select the third place using the index [2] because we start counting at 0 like with a lot of things in programming. And from that third place in the list of places I extract a place name, and I checked that it's equal to Kropp.
+
+It's good to know that this works exactly the same as with JSON bodies. So, when we run a test, it passes telling us that the name of the third place in the list is indeed equal to "Kropp".
+
+When working with these indexes there's one kind of a special index which is the index that you can use to select the last occurrence of an element. So, for example, if I want to check that the place name associated with the last place in the list of places is equal to Klein Bennebek, I can use the minus [-1] index.
+
+    @Test
+    public void requestDeZipCode24848_checkLastPlaceNameInResponseBody_expectKleinBennebek() {
+
+        given().
+        when().
+            get("http://localhost:9876/de/24848").
+        then().
+            assertThat().
+            body("response.places.place[-1].placeName", equalTo("Klein Bennebek"));
+    }
+As you can see in this test I want to check the last place name in the response body, and I expect it to be equal to "Klein Bennebek", so from the response and the list of places in the response, I select the place with the index [-1], which is equal to the last place in the list of places, and from that I extract the place name, and I specify again that it should be equal to "Klein Bennebek".
+
+And when I run this test, it too passes, which shows me that using the [-1] index actually works.
+
+As I told you earlier, XML doesn't just feature element values, it also allows you to use attributes in an element. So, for example longitude and latitude are attributes, and here are their values for the second place in the list of places.
+
+    <place longitude="9.4833" latitude="54.45">
+We have an attribute called latitude, with a value equal to 54.45, and I can think of a number of situations where I would want to check the value of an attribute just as I would like to be able to check on the value of an element.
+
+And lucky for us that's also really easy with REST Assured, and XML path.
+
+    @Test
+    public void requestDeZipCode24848_checkLatitudeForSecondPlaceInResponseBody_expect5445() {
+
+        given().
+        when().
+            get("http://localhost:9876/de/24848").
+        then().
+            assertThat().
+            body("response.places.place[1].@latitude", equalTo("54.45"));
+    }
+What I can do in my XMLPath expression, I start again with the root element which is response, go to the list of places, select the second place in the list of places that's being returned, and instead of pointing to an element that's a child element of that place element, I use an @ to point an attribute of that place element. Then I can treat it just like I would do with an element value so I can use all kinds of Hamcrest Matchers to check on the number of attribute values I see, or in this case, to the actual value of the attributes that's being returned in the XML document.
+
+So, lets run this test as well. And this test too passes telling us that REST Assured is also able to use this XMLPath expression to select not an element value but an attribute value from an XML response.
+
+And again, to demonstrate that it really works by changing the expected value and running the test again, and this test fails with the message that the expected value ended in .46, but the actual value ended in .45.
+
+As a final example I would like to check that all of the places that are associated with the ZIP code 24848 in Germany are part of the state with the name "Schleswig-Holstein", and I'll check that by selecting the state abbreviation from each of the place elements in the list of places, and comparing that to the expected value for the stateAbbreviation which is SH.
+
+So, if I want to perform this check with REST Assured, I can use a really powerful feature of XMLPath, which is a filter. In this case I use the findAll filter, which I use to extract all of the place elements from the response XML document, where the stateAbbreviation is unequal to SH. And I expect that to be an empty list because I want to assert that all of the places that are returned by the API are in the state of Schleswig-Holstein.
+
+    @Test
+    public void requestDeZipCode24848_checkNumberOfPlacesWithStateAbbreviationSH_expect4() {
+
+        given().
+        when().
+            get("http://localhost:9876/de/24848").
+        then().
+            assertThat().
+            body("response.places.place.findAll{it.stateAbbreviation!='SH'}", empty());
+    }
+If I run this test, the test passes telling me that the list of places returned by the API which don't have the state abbreviation of SH, is indeed empty as expected.
+
+As a last note, it's probably good to know that this findAll filter isn't just available for XML, so not only an XMLPath, but it works with JSONPath just as well.
