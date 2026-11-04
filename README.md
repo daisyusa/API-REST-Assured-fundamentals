@@ -26,6 +26,10 @@ https://github.com/basdijkstra/tau-rest-assured/tree/master
 
 4: Optimizing Your REST Assured Code
 
+    -- Reusability
+      - RequestSpecification
+      - ResponseSpecification
+
 5: Working with XML Responses
 
 6: (De) Serialization of Java Objects in REST Assured Tests 
