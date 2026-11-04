@@ -1,0 +1,165 @@
+In this final chapter, I want to show you how you can work with Java objects in REST Assured tests to convert them from XML or JSON response or request bodies.
+But first, a little bit about Plain Old Java Objects, or POJOs, as they're often referred to. These are the most straightforward type of Java classes there are, consisting of properties or fields, and methods that you can use to access and modify the values of those properties.
+
+Here's an example of a JSON API response for the API that we've been using so far. Nothing new here.
+
+{
+  post code: "1050",
+  country: "Latvia",
+  country abbreviation: "LV",
+  places: [
+    {
+      place name: "Riga",
+      longitude: "1",
+      state: "Riga",
+      state abbreviation: "RI",
+      latitude: "1"
+    }
+  ]
+}
+And when I want to create a Java object that matches this JSON document, that could look something like this.
+
+package dataentities;
+
+import com.fasterxml.jackson.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@JsonPropertyOrder({"postCode", "country", "countryAbbreviation", "places"})
+public class Location {
+
+    private String postCode;
+    private String country;
+    private String countryAbbreviation;
+    private List<Place> places;
+
+    public Location() {
+        this.postCode = "1050";
+        this.country = "Latvia";
+        this.countryAbbreviation = "LV";
+
+        Place place = new Place();
+        List<Place> places = new ArrayList<>();
+        places.add(place);
+
+        this.places = places;
+    }
+
+    @JsonProperty("post code")
+    public String getPostCode() {
+        return postCode;
+    }
+
+    @JsonProperty("post code")
+    public void setPostCode(String postCode) {
+        this.postCode = postCode;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public void setCountry(String country) {
+        this.country = country;
+    }
+
+    @JsonProperty("country abbreviation")
+    public String getCountryAbbreviation() {
+        return countryAbbreviation;
+    }
+
+    @JsonProperty("country abbreviation")
+    public void setCountryAbbreviation(String countryAbbreviation) {
+        this.countryAbbreviation = countryAbbreviation;
+    }
+
+    public List<Place> getPlaces() {
+        return places;
+    }
+
+    public void setPlaces(List<Place> places) {
+        this.places = places;
+    }
+}
+I have a class location with a number of different fields in it: postCode, country, countryAbbreviation, and so on. The postCode String field in the Java class corresponds to the post code field in the JSON body and that post code field has a value 1,050, which I set as the default value for the postCode String field in the Java class as well.
+
+But of course, I want to be much more flexible than that, so I create GET and SET methods for each individual property in that Java class, to be able to access and modify the value of a property in that class.
+
+And for this specific field, I also add the JSON property annotation because the field name in the JSON document contains a space, which is not allowed in property names for Java classes, so I need to explicitly specify that the post code field in the JSON document, which contains the space, corresponds to the postCode field in the Java class, which does not contain a space.
+
+#De-serializing an API Response to a Java Object
+
+So, the first example that I want to show you of working with Java objects in your REST Assured tests demonstrates how to transform an API response, which again can be in XML or in JSON format to an instance of an actual Java object. This is a process which is known as deserialization.
+
+So, here, once again, I have a REST Assured test method, but instead of specifying the assertions under the then, directly after the call to the API, I tell REST Assured to convert the response to an instance of the Location Java object. I do that using the as method, which takes a parameter the type that you want to convert the JSON or XML API response to, and I store that into an instance of the location object.
+
+import dataentities.Location;
+import io.restassured.http.ContentType;
+import org.junit.Assert;
+import org.junit.Test;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.hasSize;
+
+public class Chapter6Test {
+
+    @Test
+    public void requestUsZipCode90210_checkPlaceNameInResponseBody_expectBeverlyHills() {
+
+        Location location =
+        given().
+        when().
+            get("http://api.zippopotam.us/us/90210").
+        as(Location.class);
+
+        Assert.assertEquals(
+            "Beverly Hills",
+            location.getPlaces().get(0).getPlaceName()
+        );
+    }
+}
+Once I've deserialized the JSON or XML response into an instance of the Java location object, I can perform all kinds of assertions on it or I can reuse it for other purposes in my test.
+
+And in this example, I do a simple assertEquals, retrieving the list of places from the location objects, getting the first place out of the actual array list of places, and then retrieving the place name from that or using the get method on the properties that I defined in my class definition. I check whether the getPlaceName() method for this instance that's created by deserializing the JSON response from the API, checking whether the place name equals "Beverly Hills".
+
+So, if we run the test, we see that it passes, meaning that the deserialization process worked, and the place name is actually equal to "Beverly Hills".
+
+For example, when I change the index of the get call to one: get(1), which should retrieve the second place in the list of places returned by the API, and I run the test again, I get an IndexOutOfBoundsException — because the deserialization process creates an array list of places that's in the JSON response and since there's only one place in the API response, it'll only create an array list with a size of 1, so it doesn't even have a second element, which causes the IndexOutOfBoundsException, which is actually a much more robust and a much nicer way to fail and this is exactly what I expected it to do.
+
+#Serializing a Java object to a JSON Request Body
+Now, of course, we also want to do this the other way around. So, if we have an instance of a Java object, we want to be able to automatically convert that to an XML or JSON request body so we can send data to an API instead of just retrieving data from an API and then converting it into a Java object, and this process is known as _serialization._
+
+Here I have yet another REST Assured test.
+
+    @Test
+    public void sendLvZipCode1050_checkStatusCode_expect200() {
+
+        Location location = new Location();
+        location.setCountry("Netherlands");
+
+        given().
+            contentType(ContentType.JSON).
+            body(location).
+            log().body().
+        when().
+            post("http://localhost:9876/lv/1050").
+        then().
+            assertThat().
+            statusCode(200);
+    }
+In this test, I first create a new instance of the Location object, using its default constructor, which assigns all kinds of default failures to the different properties in the location, as well as in the Place object.
+
+Then I tell REST Assured to use, as its body, the instance of the Location object that we just created, and for good measure, I told REST Assured to write the body of the API request to the standard output so that we can actually see what happens. I defined a WireMock simulation that accepts a POST operation on the specified endpoint and returns and a status code of 200.
+
+When I run this test, we can see that the WireMock simulation actually returns a status code of 200, but that's not the most important part.
+
+The most important part is actually written to the standard output, and this is the body of the API request, which is a JSON document that's an exact serialized representation of the Java object instance that we created just before we did our REST Assured call.
+
+And to show that this really works, I'm going to quickly set the country to a different value, "Netherlands", for example.
+
+	Location location = new Location ();
+	location.setCountry("Netherlands");
+Run a test again. And my simulation will still return a status code of 200, because it isn't so fussy. But if you look at the standard output again, we can now see that the country element in the JSON request body has been assigned a value of "Netherlands", instead of the default value of "Latvia", because we told it so.
+
+This demonstrates that it's really easy to create and modify Java property values and then with a simple call to the 'body` method, convert that Java object instance to an XML or a Json request body, depending on the content type that you specified for the request.
