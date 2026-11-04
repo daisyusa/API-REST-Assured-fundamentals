@@ -17,6 +17,8 @@ https://github.com/basdijkstra/tau-rest-assured/tree/master
 1: Introduction to REST Assured
 
 2: Basic Features and Capabilities
+    
+    --LOG
 
 3: Parameterizing Your REST Assured Tests
 
