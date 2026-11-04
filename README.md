@@ -21,6 +21,8 @@ https://github.com/basdijkstra/tau-rest-assured/tree/master
     --LOG
 
 3: Parameterizing Your REST Assured Tests
+    
+    -- DataProvider
 
 4: Optimizing Your REST Assured Code
 
