@@ -1,0 +1,130 @@
+In this chapter we're going to talk about parameterizing your REST Assured tests. As you know, RESTful APIs are all about data. You have HTTP GET to retrieve existing data from the server, HTTP POST to create new data on the server, HTTP PUT or PATCH to update existing, and, of course, HTTP DELETE to delete existing data from a server.
+Because these RESTful APIs are all about data, it makes sense to try and test your RESTful API with lots of different data combinations. You can call them examples, or you can call them maybe test cases. But what you typically want to do, is try a number of different data combinations to see whether your RESTful API processes them in the way you expect it to.
+
+Now, there's a very straight forward way to repeat your REST Assured test with different sets of data. And that's simply by copying and pasting the tests that we've seen before. So, we've seen a test that verifies when we call our API on the test with the country code US and the zip code 90210, the text would return place name equals "Beverly Hills".
+
+If we want to perform the same test for a different combination of country code and zip code, we could simply copy and paste the test, write a new test, and for example, test it for country code US and zip code 12345. And check whether the place name that's returned by the API equals "Schenectady".
+
+And again, if we also want to check how the API processes zip codes from a different country, we could feed it the country code CA and the zip code B2R and check that the place name returned equals "Waverley" in Canada.
+
+Now, of course, this is not an optimal way of writing tests for different combinations of input parameters, or input values, and expected outcomes.
+
+#Parameters in RESTful APIs
+
+Before we see how you can create data driven tests in REST Assured, let's take a quick look at parameters in RESTful APIs. Basically, there are two types of parameters.
+
+The first one, and that's the one that our API under test also uses, is the path parameter, where the parameter value is simply part of the URL that you call when you invoke the API.
+
+http://api.zippopotam.us/us/90210
+http://api.zippopotam.us/ca/B2R
+So, for example, US and 90210 are path parameters. But also, in the last example that we saw in the previous slide, CA and B2R are different values for the same path parameters.
+
+The other type of parameters that's being used in RESTful APIs are query parameters, which we can recognize by the question mark (?) followed by key/value tuples separated by an equal sign.
+
+So, for example, there's a different API that calculates the MD5 checksum for a plain text string.
+
+http://md5.jsontest.com?text=apple
+
+http://md5.jsontest.com?text=banana
+
+And for this specific API you specify query parameters with a key text and a value which can contain any sort of thing like apple or banana. And it returns the MD5 value for that specific value of the text query parameter.
+
+So, how do you go about creating a parameterized REST Assured test?
+
+Let's take our example as a starting point and work from there.
+
+1. Create a test data collection
+
+The first step is to create a test data collection, which is a collection of input and expected outcome values that we want to feed to our test.
+
+Now, REST Assured in itself, does not provide a feature to specify sets of data which you can use for different iterations of your test. You need to use the data provider mechanism of the underlying unit testing framework that you use. TestNG has one out of the box. JUnit, or at least JUnit 4, which is the version of JUnit that I'm using in these examples, doesn't.
+
+But there's a nice add-on which is called junit.dataprovider, which allows you to do exactly the same things as you can do with TestNG out of the box with JUnit.
+
+So, I've included that in the project as well. And that add-on allows me to specify a data provider method, which creates and returns a 2-dimensional array of objects, which contain the test data that I want to use in my tests.
+
+import com.tngtech.java.junit.dataprovider.*;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+@RunWith(DataProviderRunner.class)
+public class Chapter3Test {
+
+    @DataProvider
+    public static Object[][] zipCodesAndPlaces() {
+        return new Object[][] {
+            { "us", "90210", "Beverly Hills" },
+            { "us", "12345", "Schenectady" },
+            { "ca", "B2R", "Waverley"}
+        };
+    }
+In this case, I want to repeat my test 3 times. The first iteration is with country code US, zip code 90210, and then I expect the place name to be Beverly Hills. The second iteration US 12345 and I expect the place name to Schenectady. And the third one is with country code CA, zip code B2R, and I expect that to map to the place of Waverley.
+
+
+2. Feed data collection to test method
+
+Now that we've created our test data set that we going to use to create iterations of our test, the next step, what we're going to do is to feed that data set, that data collection, to our test methods.
+
+And I can simply say use data provider and that data provider takes the name of the method that's annotated with data providers. So, in this case, it's zip codes and places. So, I'll simply tell my test to use @UseDataProvider("zipCodesAndPlaces"). And the underlying test framework, in this case, JUnit, will automatically look for a data provider method with same name and use that to feed our actual test method.
+
+The other thing we need to do is to tell our test method that they now can expect some arguments from that data provider method. In this case, each test data record, so to say, has 3 different fields. One that represents the country code, one that represents the zip code, and one that represents the expected place name.
+
+So, let's feed that to our test method. And it's really important that you respect the order in which the test data fields appear in your test data object because the mapping is simply done in order in which they appear in your test data set. So, the first field in a test data record will be mapped to the first parameter of the test method, the second field to the second parameter in the test method, and so on.
+
+    @Test
+    @UseDataProvider("zipCodesAndPlaces")
+    public void requestZipCodesFromCollection_checkPlaceNameInResponseBody_expectSpecifiedPlaceName(String countryCode, String zipCode, String expectedPlaceName) 
+
+3. Use path parameters to parameterize REST Assured tests
+
+Step 3 is telling our REST Assured test that it now has to accept path parameters, and those path parameters are populated by the values from our test data set. And also, we need to tell our REST Assured test that the expected value is no longer a hard-coded value, but it also comes from the expected value specified in our test data set. Let's see how we do that.
+
+So, first, I tell REST Assured that we now have two path parameters. One that represents the country code, which takes the value of the country code parameter. And one that represents the zip code, which takes the value of the zip code test parameter.
+
+The trick now, is to replace the hard-coded path parameter values in the GET method in our test with the names that we gave to the path parameters and close by curly brackets. This one, US is replaced by country code. And 90210 is replaced by zip code.
+
+And REST Assured will now automatically substitute the value of the path parameter country code, which is being passed to the test method from the data provider with the actual value of that country code specified in the test data object. And the same goes for the zip code.
+
+And the last thing that we need to do, is replace the hard-coded expected value for the place name, which is Beverly Hills, with the expected place name that's also specified in the test data set in the data provider.
+
+    @Test
+    @UseDataProvider("zipCodesAndPlaces")
+    public void requestZipCodesFromCollection_checkPlaceNameInResponseBody_expectSpecifiedPlaceName(String countryCode, String zipCode, String expectedPlaceName) 
+    {
+        given().
+            pathParam("countryCode", countryCode).pathParam("zipCode", zipCode).
+        when().
+            get("http://zippopotam.us/{countryCode}/{zipCode}").
+        then().
+            assertThat().
+            body("places[0].'place name'", equalTo(expectedPlaceName));
+    }
+If we now run our parameterized REST Assured test, we can see that it runs the same test 3 times now.
+
+So, essentially, for the statistics, it runs 3 separate tests. And as you can see, it runs the first iteration with the values US 90210 and the expected place name Beverly Hills. The second iteration with zip code 12345 and the expected place name Schenectady. And the last one with country code CA and zip code B2R and the expected place name of Waverley.
+
+And this means we successfully parameterized our REST Assured test and we can now get rid of our copy and paste tests, where we simply replaced the value specified to the API and expected values in our Hamcrest assertions.
+
+And I can tell you, to me, that feels really good because we now have a much more powerful and flexible REST Assured test, which is also much easier to maintain.
+
+
+4: Update the specified test data
+
+And to illustrate the power of having parameterized REST Assured tests, let's take a quick look at what happens if we have to update our test data set that we use to feed our REST Assured test.
+
+As a quick example, let's see what we need to do if we want to specify another example or another test case. If we also, for example, want to verify specific zip codes in the Netherlands. Then, as you might expect, the only thing that we need to do is specify yet another test data record with, for example, a country code NL, a zip code of 1001, which is a zip code in Amsterdam.
+
+    @DataProvider
+    public static Object[][] zipCodesAndPlaces() {
+        return new Object[][] {
+            { "us", "90210", "Beverly Hills" },
+            { "us", "12345", "Schenectady" },
+            { "ca", "B2R", "Waverley"},
+            {"nl", "1001", "Amsterdam"}
+        };
+    }
+And we can run our test again, and instead of the previous 3 iterations, it'll now run our test 4 times. One additional time with our newly added test data record for Amsterdam.
+
+So, as you can see, this is really powerful mechanism to parameterize your REST Assured tests and get rid of a whole lot of duplicated code, which takes much more effort to maintain.
