@@ -1,0 +1,117 @@
+So now that we've seen a couple of examples of how to use REST Assured for testing RESTful APIs, let's look at some of the features that REST Assured provides that can help you make your code more maintainable.
+
+#Reusable Request Specifications
+
+The first type of optimization that I want to dive into is the ability to reuse request specifications. So, for example, in the tests that we've seen so far, we've always hard-coded the entire API path into our tests themselves. This might lead to a lot of rework in case an API base URL changes or you want to run your tests against multiple environments.
+
+So let's see if you can do something about that.
+
+The mechanism that REST Assured offers to enable us to create flexible and reusable requests specifications is called a RequestSpecification.
+
+Here you see a very basic example of such a request specification where I create a new RequestSpecBuilder and I tell it setBaseUri("http://api.zippopotam.us") as the base URI so that I don't need to specify that in my tests again.
+
+import io.restassured.builder.RequestSpecBuilder;
+import org.junit.BeforeClass;
+
+public class Chapter4Test {
+
+    private static RequestSpecification requestSpec;
+
+    @BeforeClass
+    public static void createRequestSpecification() {
+    
+        requestSpec = new RequestSpecBuilder().
+            setBaseUri("http://api.zippopotam.us").
+            build();
+    }
+}
+There are many other types of request characteristics that you can set through the RequestSpecification builder, such as a base path, a standard content type for all of your requests. You can set default cookies for your requests. You can set default form and query parameters for your tests. You can add other types of headers. You also set default authentication schemes for all of your requests.
+
+So, there are all kinds of options that you can leverage to create a single source of truth or a single place in your code where you specify common details that you want to reuse throughout all of the requests that you're going to be evoking in your tests.
+
+And if we want to use that RequestSpecification that we just created in our tests, we simply specify it after the given part where we, as we've seen before, specify other details for our requests that we're going to make inside of all our tests.
+
+And because we've now specified the base URI in our RequestSpecification, we can omit it from the GET call because REST Assured will automatically append the path that we're going to evoke in our test, in our GET method here to the base URI that's defined in the RequestSpecification.
+
+    @Test
+    public void requestUsZipCode90210_checkPlaceNameInResponseBody_expectBeverlyHills_withRequestSpec() {
+
+        given().
+            spec(requestSpec).
+        when().
+            get("us/90210").
+        then().
+            assertThat().
+            statusCode(200);
+    }
+So, let's run the test. We see that our test passes, telling us that the base URI has correctly been set, otherwise the API call that we would have made would have never returned an HTTP status code of 200.
+
+#Reusable Response Checks
+
+Now an even more interesting feature would be the ability to reuse response checks. So if, for example, throughout all of my tests, I want to do an assertion on the responses that I get back in the tests that the HTTP status code is 200 for all of the tests in my test class, for example, or I want to check that the returned content type is JSON or XML or whatever content type it is that's expected. Typically, I don't want to specify such an individual check for each and every one of the tests in my test class because that would mean I would have to duplicate a lot of code. So, wouldn't it be nice if we could specify those expected values in one place and maintain and reuse them from there?
+
+Now as you might have expected, in addition to the RequestSpecification, REST Assured also offers the ResponseSpecification mechanism. It works in much the same way with the difference being that with the RequestSpecification, you specify common characteristics of the requests that you're going to make, but in the ResponseSpecification, you specify common characteristics for the responses that are returned from the API calls that you've made, or common checks that you want to perform on those responses that you get.
+
+So, in this example, I create a ResponseSpecification stating that the expected status code for each of the API calls or for the REST Assured tests in which I use that ResponseSpecification is equal to 200 and that the expected content type is equal to JSON.
+
+    private static ResponseSpecification responseSpec;
+
+    @BeforeClass
+    public static void createResponseSpecification() {
+
+        responseSpec = new ResponseSpecBuilder().
+            expectStatusCode(200).
+            expectContentType(ContentType.JSON).
+            build();
+    }
+And as with the RequestSpecification, I can simply add the previously defined ResponseSpecification, but this time I add it to the then part because that's where you specify all characteristics, all expected failures, all the assertions you want to do with regards to the API responses.
+
+    @Test
+    public void requestUsZipCode90210_checkPlaceNameInResponseBody_expectBeverlyHills_withResponseSpec() {
+
+        given().
+            spec(requestSpec).
+        when().
+            get("http://zippopotam.us/us/90210").
+        then().
+            spec(responseSpec).
+        and().
+            assertThat().
+            body("places[0].'place name'", equalTo("Beverly Hills"));
+    }
+So, this test will check whether the status code of the API call that's being performed is equal to 200, that the content type is equal to JSON.
+
+And as you can see, you can also, next to the checks that are defined in the ResponseSpecification, you can also add custom checks, which are individual to each test. And in this example, I also want to perform a check that the place name for the first place that's being returned by the API call is equal to "Beverly Hills".
+
+So, when we run our test, we see that the test passes, telling us that the status code matches the expected value of 200, that the content type was indeed equal to JSON and that the first place name in the list of places returned by the API was equal to "Beverly Hills".
+
+Now, to illustrate that a response specification really works, let's change the expected status code to 201 and rerun our test. And we can see that the test fails and when we look at our console output, we see that it tells us that the expected status code is 201, but the actual status code that's being returned by the API is 200. And this tells us that the response specification mechanism really works as we expected it to do.
+
+#Extracting Response Values for Reuse
+
+The last example that I want to give of optimizing your REST Assured code and being able to reuse pre-specified and pre-defined values is the ability to extract values, element values from individual responses from API calls and storing them for later reuse.
+
+So, one very typical example would be performing an API call prior to a test run that retrieves an authentication token for an API that's secured with the OAuth authentication mechanism and then being able to reuse that token in all subsequent REST Assured tests.
+
+To illustrate how the extraction mechanism works in REST Assured, I've created another test which calls the same API endpoint that we've been calling a lot of times before already, but instead of directly specifying the assertions into our REST Assured test code itself, I used the extract method and then specify a path which is again adjacent path to an element whose value I want to extract and then store it in a local string place name.
+
+So, in this case, it will extract the place name of the first place in the list of places that's being returned by the API, store it in a local String placeName. And then I perform an assertion on it to demonstrate that the place name that's being extracted from the API response is actually equal to "Beverly Hills" and by doing so, I show you that the extraction mechanism works as I expect it to do.
+
+    @Test
+    public void requestUsZipCode90210_extractPlaceNameFromResponseBody_assertEqualToBeverlyHills() {
+    
+        String placeName =
+        given().
+            spec(requestSpec).
+        when().
+            get("http://zippopotam.us/us/90210").
+        then().
+            extract().
+            path("places[0].'Beverly Hills'");
+
+        Assert.assertEquals(placeName, "Beverly Hills");
+    }
+}
+Let's run the test. And the test passes, telling us that the extracted place name, which had been stored in the local string variable is actually equal to "Beverly Hills". And again, this is a really simple example to show you how the extraction mechanism works.
+
+And this extraction mechanism, from example, really shines in scenarios where you need to extract an authentication token from an API response and reuse that in subsequent tests or when you want to create a test that performs a number of API calls one after another. So, for example, you want to simulate a scenario where you first have to create a customer using some customer details and it returns you a customer ID and then, for example, place an order for that same customer, using the customer ID. And you can't predict the customer ID before you run the tests, so you need to create a new customer and then retrieve, extract and store the customer ID from it in order to be able to use it in subsequent tests. And that's where the extraction method that's being offered by REST Assured really comes in handy.
