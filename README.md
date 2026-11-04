@@ -32,5 +32,7 @@ https://github.com/basdijkstra/tau-rest-assured/tree/master
 
 5: Working with XML Responses
 
+    -- Use XML Path
+
 6: (De) Serialization of Java Objects in REST Assured Tests 
 
